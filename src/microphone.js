@@ -14,21 +14,48 @@ function init(Survey) {
     isFit: function(question) {
       return question.getType() === componentName;
     },
-    htmlTemplate:
-      "<div style='height: 39px'>" +
-      "<button type='button'  title='Record' style='vertical-align: top; margin-top: 3px' ><i class='fa fa-microphone' aria-hidden='true'></i></button>" +
-      "&nbsp;<button type='button' title='Save' style='vertical-align: top; margin-top: 3px'><i class='fa fa-cloud' aria-hidden='true' ></i></button>" +
-      "&nbsp;<audio style='" +
-      "vertical-align: top;" +
-      "margin-left: 10px;" +
-      "height:35px;" +
-      "-moz-box-shadow: 2px 2px 4px 0px #006773;" +
-      "-webkit-box-shadow:  2px 2px 4px 0px #006773;" +
-      "box-shadow: 2px 2px 4px 0px #006773;" +
-      "' " +
-      "controls='true' >" +
-      "</audio>" +
-      "</div>",
+    htmlTemplate: `
+      <div>
+        <button
+          type="button"
+          title="Record"
+          style="
+            padding: 0.8rem 1rem;
+            background: #19b394;
+            color: white;
+            border: none;
+            border-radius: 0.25rem;
+          "
+        >
+          <i class="fa fa-microphone" aria-hidden="true"></i>
+        </button>
+
+        <button
+          type="button"
+          title="Save"
+          style="
+            padding: 0.8rem 1rem;
+            background: #e60a3e;
+            color: white;
+            border: none;
+            border-radius: 0.25rem;
+          "
+        >
+          <i class="fa fa-cloud" aria-hidden="true"></i>
+        </button>
+
+        <audio
+          controls
+          style="
+            vertical-align: top;
+            margin-left: 10px;
+            height: 35px;
+            width: 70%;
+          "
+        ></audio>
+      </div>
+    `,
+
     activatedByChanged: function(activatedBy) {
       Survey.Serializer.addClass(componentName, [], null, "empty");
       let registerQuestion = Survey.ElementFactory.Instance.registerCustomQuestion;
