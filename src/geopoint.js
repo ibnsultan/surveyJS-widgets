@@ -23,7 +23,15 @@ function init(Survey) {
 
     activatedByChanged(activatedBy) {
       Survey.Serializer.addClass(componentName, [
-        { name: "geoFormat", default: "current" } // current | manual | trace | area
+        { name: "geoFormat", default: "current", category: "general", type: "dropdown", choices: [
+                { value: "current", text: "Current Location" },
+                { value: "manual", text: "Manual Point Selection" },
+                { value: "trace", text: "Path tracing (Polyline)" },
+                { value: "area", text: "Area Mapping (Polygon)" },
+              //   { value: "both", text: "Tracing and Polygon" },
+              //  { value: "full", text: "Full Geospatial Capture" }
+            ]
+        } // current | manual | trace | area
       ], null, "empty");
       let registerQuestion = Survey.ElementFactory.Instance.registerCustomQuestion;
       if (registerQuestion) registerQuestion(componentName);
@@ -59,13 +67,13 @@ function init(Survey) {
           updateValue({ lat: e.latlng.lat, lng: e.latlng.lng });
         });
 
-      } else if (geoFormat === "trace" || geoFormat === "area") {
+      } else if (geoFormat === "trace" || geoFormat === "area" || geoFormat === "both" || geoFormat === "full") {
         drawControl = new L.Control.Draw({
           edit: { featureGroup: drawnItems },
           draw: {
-            polyline: geoFormat === "trace",
-            polygon: geoFormat === "area",
-            marker: false,
+            polyline: geoFormat === "trace" || geoFormat === "both" || geoFormat === "full",
+            polygon: geoFormat === "area" || geoFormat === "both" || geoFormat === "full",
+            marker: geoFormat === "full",
             circle: false,
             rectangle: false,
             circlemarker: false
@@ -76,11 +84,15 @@ function init(Survey) {
         map.on(L.Draw.Event.CREATED, function (e) {
           drawnItems.clearLayers();
           drawnItems.addLayer(e.layer);
-          const latlngs = e.layer.getLatLngs();
           let value;
-          if (geoFormat === "trace") {
+          if (e.layer instanceof L.Marker) {
+            const latlng = e.layer.getLatLng();
+            value = { lat: latlng.lat, lng: latlng.lng };
+          } else if (e.layer instanceof L.Polyline && !(e.layer instanceof L.Polygon)) {
+            const latlngs = e.layer.getLatLngs();
             value = latlngs.map(pt => ({ lat: pt.lat, lng: pt.lng }));
-          } else {
+          } else if (e.layer instanceof L.Polygon) {
+            const latlngs = e.layer.getLatLngs();
             value = latlngs[0].map(pt => ({ lat: pt.lat, lng: pt.lng }));
           }
           updateValue(value);
@@ -90,18 +102,54 @@ function init(Survey) {
       // Load saved value
       if (question.value) {
         if (geoFormat === "current" || geoFormat === "manual") {
-          const marker = L.marker([question.value.lat, question.value.lng]).addTo(map);
-          map.setView([question.value.lat, question.value.lng], 15);
-        } else if (geoFormat === "trace") {
+          const { lat, lng } = question.value;
+          if (lat != null && lng != null) {
+            const marker = L.marker([lat, lng]).addTo(map);
+            map.setView([lat, lng], 15);
+          }
+        } else if (geoFormat === "trace" && Array.isArray(question.value)) {
           const polyline = L.polyline(question.value.map(p => [p.lat, p.lng])).addTo(map);
           drawnItems.addLayer(polyline);
           map.fitBounds(polyline.getBounds());
-        } else if (geoFormat === "area") {
+        } else if (geoFormat === "area" && Array.isArray(question.value)) {
           const polygon = L.polygon(question.value.map(p => [p.lat, p.lng])).addTo(map);
           drawnItems.addLayer(polygon);
           map.fitBounds(polygon.getBounds());
+        } else if (geoFormat === "both") {
+          const trace = Array.isArray(question.value.trace) ? question.value.trace : [];
+          const area = Array.isArray(question.value.area) ? question.value.area : [];
+
+          const polyline = L.polyline(trace.map(p => [p.lat, p.lng])).addTo(map);
+          const polygon = L.polygon(area.map(p => [p.lat, p.lng])).addTo(map);
+          drawnItems.addLayer(polyline);
+          drawnItems.addLayer(polygon);
+          map.fitBounds(polyline.getBounds().extend(polygon.getBounds()));
+        } else if (geoFormat === "full") {
+          const { lat, lng, trace, area } = question.value;
+
+          if (lat != null && lng != null) {
+            const marker = L.marker([lat, lng]).addTo(map);
+            drawnItems.addLayer(marker);
+
+            const bounds = marker.getBounds();
+
+            if (Array.isArray(trace)) {
+              const polyline = L.polyline(trace.map(p => [p.lat, p.lng])).addTo(map);
+              drawnItems.addLayer(polyline);
+              bounds.extend(polyline.getBounds());
+            }
+
+            if (Array.isArray(area)) {
+              const polygon = L.polygon(area.map(p => [p.lat, p.lng])).addTo(map);
+              drawnItems.addLayer(polygon);
+              bounds.extend(polygon.getBounds());
+            }
+
+            map.fitBounds(bounds);
+          }
         }
       }
+
 
       question.valueChangedCallback = () => {};
     },
@@ -114,21 +162,6 @@ function init(Survey) {
   };
 
   Survey.CustomWidgetCollection.Instance.addCustomWidget(widget, "customtype");
-  // Add geoFormat to Creator sidebar
-  if (typeof SurveyCreator !== "undefined") {
-    SurveyCreator.Serializer.addProperty("geopoint", {
-      name: "geoFormat",
-      category: "general",
-      choices: [
-        { value: "current", text: "Current Location" },
-        { value: "manual", text: "Manual Point Selection" },
-        { value: "trace", text: "Draw Path (Trace)" },
-        { value: "area", text: "Draw Area (Polygon)" }
-      ],
-      type: "dropdown",
-      default: "current"
-    });
-  }
 
 }
 
